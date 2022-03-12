@@ -1,1 +1,8 @@
+# usefeul commands which we are going to build on 
+az
 az login
+az aks --help
+az account list -o table
+az account set --subscription  00000000-0000-0000-0000-000000000000 #sub id
+RESOURCEGROUP=aks-getting-started
+
