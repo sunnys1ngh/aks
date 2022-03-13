@@ -1,5 +1,8 @@
 
-# usefeul commands which we are going to build on 
+
+# lets run some commands to kick start the the intial part
+
+# login to our cloud subcription
 
 az
 az login
@@ -8,6 +11,7 @@ az account list -o table
 az account set --subscription  00000000-0000-0000-0000-000000000000 #sub id
 
 # create our resourcegroup
+
 RESOURCEGROUP=aks-getting-started
 az group create -n $RESOURCEGROUP -l uksouth
 
@@ -20,9 +24,36 @@ SERVICE_PRINCIPAL_JSON=$(az ad sp create-for-rbac --skip-assignment --name aks-g
 SERVICE_PRINCIPAL=$(echo $SERVICE_PRINCIPAL_JSON | jq -r '.appId')
 SERVICE_PRINCIPAL_SECRET=$(echo $SERVICE_PRINCIPAL_JSON | jq -r '.password')
 
-# grant contributor role over the resource group to our service principal
+# grant the service principle contributor role to the resource group
 
 az role assignment create --assignee $SERVICE_PRINCIPAL \
 --scope "/subscriptions/$SUBSCRIPTION/resourceGroups/$RESOURCEGROUP" \
 --role Contributor
 
+# list help
+
+az aks create --help
+az aks get-versions --location uksouth -o table
+
+# generate SSH key
+
+ssh-keygen -t rsa -b 4096 -N "SecretPassword123!" -C "your.email@example.com" -q -f  ~/.ssh/id_rsa
+cp ~/.ssh/id_rsa* .
+
+az aks create -n aks-getting-started \
+--resource-group $RESOURCEGROUP \
+--location uksouth \
+--kubernetes-version 1.16.10 \
+--load-balancer-sku standard \
+--nodepool-name default \
+--node-count 1 \
+--node-vm-size Standard_E4s_v3  \
+--node-osdisk-size 250 \
+--ssh-key-value ./id_rsa.pub \
+--network-plugin kubenet \
+--service-principal $SERVICE_PRINCIPAL \
+--client-secret "$SERVICE_PRINCIPAL_SECRET" \
+--output none
+
+# generating a new service principle:
+SERVICE_PRINCIPAL_SECRET=(az ad sp credential reset --name $SERVICE_PRINCIPAL | jq -r '.password')
