@@ -8,9 +8,6 @@ az aks --help
 az account list -o table
 az account set --subscription  00000000-0000-0000-0000-000000000000 #sub id
 
-# create an environment variable for subscription ID
-subscription=$(az account show --query "id" -o tsv)
-
 # create our resourcegroup
 
 RESOURCEGROUP=aks-getting-started
