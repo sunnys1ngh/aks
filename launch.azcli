@@ -1,3 +1,4 @@
+# 
 # lets run some commands to kick start the the intial part
 
 # login to our cloud subcription
@@ -7,11 +8,10 @@ az login
 az aks --help
 az account list -o table
 az account set --subscription  00000000-0000-0000-0000-000000000000 #sub id
+# create our resourcegroup
 
 # create an environment variable for subscription ID
-subscription=$(az account show --query "id" -o tsv)
-
-# create our resourcegroup
+SUBSCRIPTION=$(az account show --query "id" -o tsv)
 
 RESOURCEGROUP=aks-getting-started
 az group create --location uksouth --resource-group $RESOURCEGROUP
