@@ -15,12 +15,12 @@ SUBSCRIPTION=$(az account show --query "id" -o tsv)
 
 # create our resourcegroup
 
-RESOURCEGROUP=aks-getting-started
+RESOURCEGROUP=aks-setup-01
 az group create --location uksouth --resource-group $RESOURCEGROUP
 
 # create our service principle
 
-SERVICE_PRINCIPAL_JSON=$(az ad sp create-for-rbac --skip-assignment --name aks-getting-started-sp -o json)
+SERVICE_PRINCIPAL_JSON=$(az ad sp create-for-rbac --skip-assignment --name aks-setup-01-sp -o json)
 
 # retain the app id & password for later use
 
@@ -29,9 +29,8 @@ SERVICE_PRINCIPAL_SECRET=$(echo $SERVICE_PRINCIPAL_JSON | jq -r '.password')
 
 # grant the service principle contributor role to the resource group
 
-az role assignment create --assignee $SERVICE_PRINCIPAL \
---scope "/subscriptions/$SUBSCRIPTION/resourceGroups/$RESOURCEGROUP" \ # there is no var for $subscription so will be invalid
---role Contributor
+az role assignment create --assignee $SERVICE_PRINCIPAL --role Contributor --scope "/subscriptions/$SUBSCRIPTION/resourceGroups/$RESOURCEGROUP"
+
 
 # list help
 
@@ -40,23 +39,23 @@ az aks get-versions --location uksouth -o table
 
 # generate SSH key
 
-ssh-keygen -t rsa -b 4096 -N "SecretPassword123!" -C "your.email@example.com" -q -f  ~/.ssh/id_rsa
+ssh-keygen -t rsa -b 4096 -N "SecretPassword123" -C "sunny@motv8.co" -q -f  ~/.ssh/id_rsa                # C:\Users\ss/.ssh/id_rsa
 cp ~/.ssh/id_rsa* .
 
-az aks create -n aks-getting-started \
---resource-group $RESOURCEGROUP \
---location uksouth \
---kubernetes-version 1.20.13 \
---load-balancer-sku standard \
---nodepool-name default \
---node-count 1 \
---node-vm-size Standard_E4s_v3  \
---node-osdisk-size 250 \
---ssh-key-value ./id_rsa.pub \
---network-plugin kubenet \
---service-principal $SERVICE_PRINCIPAL \
---client-secret "$SERVICE_PRINCIPAL_SECRET" \
+az aks create --name aks-setup-01 --resource-group $RESOURCEGROUP `
+--location uksouth `
+--kubernetes-version 1.22.6 `                   # Version as of 14 March 2022
+--load-balancer-sku standard `
+--nodepool-name default `
+--node-count 1 `
+--node-vm-size Standard_E4s_v3  `
+--node-osdisk-size 250 `
+--ssh-key-value ./id_rsa.pub `
+--network-plugin kubenet `
+--service-principal $SERVICE_PRINCIPAL `
+--client-secret "$SERVICE_PRINCIPAL_SECRET" `
 --output none
 
 # generating a new service principle:
 SERVICE_PRINCIPAL_SECRET=(az ad sp credential reset --name $SERVICE_PRINCIPAL | jq -r '.password')
+
