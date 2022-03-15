@@ -44,7 +44,7 @@ cp ~/.ssh/id_rsa* .
 
 az aks create --name aks-setup-01 --resource-group $RESOURCEGROUP `
 --location uksouth `
---kubernetes-version 1.22.6 `                   # Version as of 14 March 2022
+--kubernetes-version 1.22.6 `                   # Version as of 14 March 2022 using >>> 1.21.9 
 --load-balancer-sku standard `
 --nodepool-name default `
 --node-count 1 `
@@ -59,3 +59,8 @@ az aks create --name aks-setup-01 --resource-group $RESOURCEGROUP `
 # generating a new service principle:
 SERVICE_PRINCIPAL_SECRET=(az ad sp credential reset --name $SERVICE_PRINCIPAL | jq -r '.password')
 
+az aks list -o table
+
+az aks get-credentials -n aks-setup-01 --resource-group $RESOURCEGROUP --admin
+
+cp ~/.kube/config
