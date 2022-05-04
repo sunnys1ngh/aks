@@ -152,3 +152,55 @@ az monitor diagnostic-settings create --resource "$AKS_RESOURCE_ID" --name "AksL
   --workspace "$LOGANALYTICS_NAME_AUDIT" --resource-group $RESOURCE_GROUP_AUDIT \
   --logs '@aksLogCategories.json' --metrics '@aksMetrics.json'
 
+# ASSIGN THE CLUSTER ADMIN RBAC ROLE (id: b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b) TO AN AZURE AD GROUP
+AZURE_AD_GROUP_NAME=""
+AZURE_AD_GROUP_OBJECT_ID=$(az ad group show -g RG_AZ_CCoE_Azure --query objectId -o tsv) 
+az role assignment create --role b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b \
+  --assignee-object-id $AZURE_AD_GROUP_OBJECT_ID --assignee-principal-type Group \
+  --scope $AKS_RESOURCE_ID
+
+# USER CREDENTIALS
+az aks get-credentials -g $RESOURCE_GROUP -n $CLUSTER_NAME
+
+# ADMIN CREDENTIALS (DON'T USE IT FOR DAILY OPERATIONS)
+az aks get-credentials -g $RESOURCE_GROUP -n $CLUSTER_NAME --admin
+
+# CREATE THE CONTAINER REGISTRY
+ACR_NAME=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1) # NEEDS TO BE UNIQUE
+RESOURCE_GROUP_ACR=$RESOURCE_GROUP-acr
+
+resourceGroupExists=$(az group exists --name "$RESOURCE_GROUP_ACR")
+if [ "$resourceGroupExists" == "false" ]; then 
+    echo "Creating resource group: "$RESOURCE_GROUP_ACR" in location: ""$LOCATION"
+    az group create --name "$RESOURCE_GROUP_ACR" --location "$LOCATION"
+fi
+
+acrExists=$(az acr list -g $RESOURCE_GROUP_ACR --query "[?name=='$ACR_NAME'].name" -o tsv)
+if [ "$acrExists" != "$ACR_NAME" ]; then
+   ACR_ID=$(az acr create -g $RESOURCE_GROUP_ACR -n $ACR_NAME --sku Basic --admin-enabled false --location $LOCATION --query id -o tsv)
+else
+   ACR_ID=$(az acr list -g $RESOURCE_GROUP_ACR --query "[?name=='$ACR_NAME'].id" -o tsv ) 
+fi
+
+# ALLOW ACCESS TO THE ACR FROM AKS
+az aks update -n $CLUSTER_NAME -g $RESOURCE_GROUP --attach-acr $ACR_NAME
+
+CLUSTER_IDENTITY_ID=$(az aks show -g $RESOURCE_GROUP -n $CLUSTER_NAME --query identityProfile.kubeletidentity.clientId -o tsv)
+az role assignment list --assignee $CLUSTER_IDENTITY_ID --scope $ACR_ID
+
+# ADD THE AKS POLICIES
+POLICY_SCOPE=$(az group show --name $RESOURCE_GROUP --output tsv --query id)
+
+az policy assignment create --name "aks-not-allow-privileged-containers" --display-name "Kubernetes cluster should not allow privileged containers" \
+--policy $(az policy definition list --query "[?displayName=='Kubernetes cluster should not allow privileged containers'].name" -o tsv) --scope $POLICY_SCOPE \
+--params "{ \"effect\": { \"value\": \"deny\" }, \"excludedNamespaces\": {\"value\": [\"kube-system\", \"gatekeeper-system\", \"flux-system\", \"baseline\", \"cert-manager\"  ]}}"
+
+az policy assignment create --name "aks-not-allow-container-privilege-escalation" --display-name "Kubernetes clusters should not allow container privilege escalation" \
+--policy $(az policy definition list --query "[?displayName=='Kubernetes clusters should not allow container privilege escalation'].name" -o tsv) --scope $POLICY_SCOPE \
+--params "{ \"effect\": { \"value\": \"deny\" }, \"excludedNamespaces\": {\"value\": [\"kube-system\", \"gatekeeper-system\", \"flux-system\", \"baseline\", \"cert-manager\"  ]}}"
+
+az policy assignment create --name "aks-only-allowed-images" --display-name "Kubernetes cluster containers should only use allowed images" \
+--policy $(az policy definition list --query "[?displayName=='Kubernetes cluster containers should only use allowed images'].name" -o tsv) --scope $POLICY_SCOPE \
+--params "{ \"effect\": { \"value\": \"deny\" }, \"excludedNamespaces\": {\"value\": [\"kube-system\", \"gatekeeper-system\", \"flux-system\" ]}, \"allowedContainerImagesRegex\": {\"value\":\"^$ACR_NAME.azurecr.io/.+$\"}}"
+
+
