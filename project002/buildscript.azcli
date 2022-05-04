@@ -102,3 +102,49 @@ if [ "$aksSystemNodePoolExists" != "$SYSTEM_NODE_NAME" ]; then
     # delete the existing "temp" system  node pool
     az aks nodepool delete -g $RESOURCE_GROUP --cluster-name $CLUSTER_NAME -n systemtemp
 fi
+
+USER_NODE_NAME="user1"
+USER_NODE_VM_SIZE="Standard_D4ds_v4"
+USER_NODE_OS_DISK_SIZE=100
+USER_MIN_COUNT=1
+USER_MAX_COUNT=4
+
+aksUserNodePoolExists=$(az aks nodepool list -g $RESOURCE_GROUP --cluster-name $CLUSTER_NAME --query "[?name=='$USER_NODE_NAME'].name" -o tsv --only-show-errors)
+if [ "$aksUserNodePoolExists" != "$USER_NODE_NAME" ]; then
+    az aks nodepool add -g $RESOURCE_GROUP --cluster-name $CLUSTER_NAME \
+    --node-osdisk-type Ephemeral --node-osdisk-size $USER_NODE_OS_DISK_SIZE --zones {1,2,3} \
+    --name $USER_NODE_NAME --node-vm-size $USER_NODE_VM_SIZE --enable-cluster-autoscaler \
+    --max-count $USER_MAX_COUNT --min-count $USER_MIN_COUNT --mode User \
+    --vnet-subnet-id $VNET_SUBNET_ID --max-surge 33%
+fi
+
+USER_NODE_NAME="user1"
+USER_NODE_VM_SIZE="Standard_D4ds_v4"
+USER_NODE_OS_DISK_SIZE=100
+USER_MIN_COUNT=1
+USER_MAX_COUNT=4
+
+aksUserNodePoolExists=$(az aks nodepool list -g $RESOURCE_GROUP --cluster-name $CLUSTER_NAME --query "[?name=='$USER_NODE_NAME'].name" -o tsv --only-show-errors)
+if [ "$aksUserNodePoolExists" != "$USER_NODE_NAME" ]; then
+    az aks nodepool add -g $RESOURCE_GROUP --cluster-name $CLUSTER_NAME \
+    --node-osdisk-type Ephemeral --node-osdisk-size $USER_NODE_OS_DISK_SIZE --zones {1,2,3} \
+    --name $USER_NODE_NAME --node-vm-size $USER_NODE_VM_SIZE --enable-cluster-autoscaler \
+    --max-count $USER_MAX_COUNT --min-count $USER_MIN_COUNT --mode User \
+    --vnet-subnet-id $VNET_SUBNET_ID --max-surge 33%
+fi
+
+RESOURCE_GROUP_AUDIT=$RESOURCE_GROUP-audit
+LOGANALYTICS_NAME_AUDIT=$LOGANALYTICS_NAME-audit
+
+resourceGroupExists=$(az group exists --name "$RESOURCE_GROUP_AUDIT")
+if [ "$resourceGroupExists" == "false" ]; then 
+    echo "Creating resource group: "$RESOURCE_GROUP_AUDIT" in location: ""$LOCATION"
+    az group create --name "$RESOURCE_GROUP_AUDIT" --location "$LOCATION"
+fi
+
+logAnalyticsExists=$(az monitor log-analytics workspace list --resource-group $RESOURCE_GROUP_AUDIT --query "[?name=='$LOGANALYTICS_NAME_AUDIT'].name" -o tsv)
+if [ "$logAnalyticsExists" != "$LOGANALYTICS_NAME_AUDIT" ]; then
+    az monitor log-analytics workspace create --resource-group $RESOURCE_GROUP_AUDIT \
+    --workspace-name $LOGANALYTICS_NAME_AUDIT --location $LOCATION
+fi
+
