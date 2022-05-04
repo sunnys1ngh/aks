@@ -10,6 +10,13 @@ az account list -o table
 az account set --subscription  00000000-0000-0000-0000-000000000000 #sub id
 # create our resourcegroup
 
+# Run Azure CLI
+docker run -it --rm -v ${PWD}:/work -w /work --entrypoint /bin/sh mcr.microsoft.com/azure-cli:2.6.0
+
+cd ./kubernetes/cloud/azure
+
+
+
 # create an environment variable for subscription ID
 SUBSCRIPTION=$(az account show --query "id" -o tsv)
 
@@ -64,3 +71,5 @@ az aks list -o table
 az aks get-credentials -n aks-setup-01 --resource-group $RESOURCEGROUP --admin
 
 cp ~/.kube/config
+
+
