@@ -148,3 +148,7 @@ if [ "$logAnalyticsExists" != "$LOGANALYTICS_NAME_AUDIT" ]; then
     --workspace-name $LOGANALYTICS_NAME_AUDIT --location $LOCATION
 fi
 
+az monitor diagnostic-settings create --resource "$AKS_RESOURCE_ID" --name "AksLogging" \
+  --workspace "$LOGANALYTICS_NAME_AUDIT" --resource-group $RESOURCE_GROUP_AUDIT \
+  --logs '@aksLogCategories.json' --metrics '@aksMetrics.json'
+
