@@ -290,4 +290,24 @@ git commit -m "acr helm repository"
 git push
 cd ..
 
+RESOURCE_GROUP= # resource group where the AKS cluster is deployed
+CLUSTER_NAME=  # the name of the AKS cluster
+SUBSCRIPTION_ID= #  the id of the subscription
+IDENTITIES_RESOURCE_GROUP= # resource group name where the identities you plan to assign to pods are stored. If you plan to bind their lifetime to the cluster, you can keep them in the NODE_RESOURCE_GROUP. Otherwise, it is a best practice to use a dedicated resource group
+
+# Obtain the ID of the managed identity assigned on the node pools
+CLUSTER_IDENTITY_ID=$(az aks show -g $RESOURCE_GROUP -n $CLUSTER_NAME --query identityProfile.kubeletidentity.clientId -o tsv)
+
+# Get the node resource group
+NODE_RESOURCE_GROUP=$(az aks show -g $RESOURCE_GROUP -n $CLUSTER_NAME --query nodeResourceGroup -o tsv --only-show-errors)
+
+# Assign the necessary role to the AKS cluster identity, to be able to modify the VMSS settings
+az role assignment create --role "Virtual Machine Contributor" --assignee $CLUSTER_IDENTITY_ID --scope /subscriptions/$SUBSCRIPTION_ID/resourcegroups/$NODE_RESOURCE_GROUP
+
+# Option 1 - Assign the necessary role to the AKS cluster identity, to be able to attach the managed identities in the IDENTITIES_RESOURCE_GROUP to the VMSS.
+az role assignment create --role "Managed Identity Operator" --assignee $CLUSTER_IDENTITY_ID --scope /subscriptions/$SUBSCRIPTION_ID/resourcegroups/$IDENTITIES_RESOURCE_GROUP
+
+# Option 2 - Assing the necessary role to the AKS cluster identity only to particular user managed identities:
+az role assignment create --role "Managed Identity Operator" --assignee $CLUSTER_IDENTITY_ID --scope /subscriptions/$SUBSCRIPTION_ID/resourcegroups/$IDENTITIES_RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$IDENTITY_NAME
+
 
