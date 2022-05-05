@@ -310,4 +310,67 @@ az role assignment create --role "Managed Identity Operator" --assignee $CLUSTER
 # Option 2 - Assing the necessary role to the AKS cluster identity only to particular user managed identities:
 az role assignment create --role "Managed Identity Operator" --assignee $CLUSTER_IDENTITY_ID --scope /subscriptions/$SUBSCRIPTION_ID/resourcegroups/$IDENTITIES_RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$IDENTITY_NAME
 
+# Add Security Considerations with KUBNET
+securityContext:
+  capabilities:
+    drop:
+    - NET_RAW
+
+# PULL THE HELM CHART LOCALY
+helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts
+helm pull aad-pod-identity/aad-pod-identity
+
+# PUSH THE HELM CHART TO ACR
+az acr helm push -n $ACR_NAME aad-pod-identity-*.tgz
+
+# PUSH THE IMAGE TO ACR
+AADPODIDENTITY_CHART_VERSION=$(helm show chart aad-pod-identity/aad-pod-identity | grep version |  awk -F" " '{print $2}')
+az acr import --source mcr.microsoft.com/oss/azure/aad-pod-identity/nmi:v$(helm show chart aad-pod-identity/aad-pod-identity | grep appVersion |  awk -F" " '{print $2}') \
+-n $ACR_NAME --force
+az acr import --source mcr.microsoft.com/oss/azure/aad-pod-identity/mic:v$(helm show chart aad-pod-identity/aad-pod-identity | grep appVersion |  awk -F" " '{print $2}') \
+-n $ACR_NAME --force
+
+# CREATE HELMRELEASE MANIFEST FOR AAD-POD-IDENTITY
+mkdir -p $GITHUB_REPO/infrastructure/base/aad-pod-identity
+cat > $GITHUB_REPO/infrastructure/base/aad-pod-identity/release.yaml << ENDOFFILE
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: aad-pod-identity
+spec:
+  releaseName: aad-pod-identity
+  chart:
+    spec:
+      chart: aad-pod-identity
+      sourceRef:
+        kind: HelmRepository
+        name: acr-private
+        namespace: flux-system
+      version: "${AADPODIDENTITY_CHART_VERSION}"
+  interval: 1h0m0s
+  install:
+    remediation:
+      retries: 3
+  # Default values
+  # https://github.com/Azure/aad-pod-identity/blob/master/charts/aad-pod-identity/values.yaml
+  values:    
+    image:
+      repository: ${ACR_NAME}.azurecr.io/oss/azure/aad-pod-identity
+ENDOFFILE
+
+# KUSTOMIZATION MANIFEST FOR AAD-POD-IDENTITY
+cat > $GITHUB_REPO/infrastructure/base/aad-pod-identity/kustomization.yaml << ENDOFFILE
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: baseline
+resources:  
+  - release.yaml
+ENDOFFILE
+
+# COMMIT AND PUSH THE CHANGES
+cd $GITHUB_REPO
+git add *
+git commit -m "aad-pod-identity installation"
+git push
+cd ..
 
